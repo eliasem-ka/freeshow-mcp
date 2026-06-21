@@ -1,0 +1,3 @@
+[submodule "FreeShow"]
+	path = FreeShow
+	url = git@github.com:eliasem-ka/freeshow-fork-v1.git

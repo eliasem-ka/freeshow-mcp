@@ -1,0 +1,15 @@
+# dependencias y artefactos de build
+node_modules/
+dist/
+build/
+*.log
+
+# binario de terceros (importador de biblias a ProPresenter, no es parte de este proyecto)
+bible_import.exe
+
+# salida temporal del convertidor
+bible-converter/_test_out/
+
+# OS
+.DS_Store
+Thumbs.db

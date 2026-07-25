@@ -164,7 +164,16 @@ server.registerTool(
                 .boolean()
                 .optional()
                 .describe("Si una diapositiva tiene varias líneas, hacer que entren una por una al ritmo. Solo aplica con linesPerSlide > 1."),
-            autoAdvance: z.boolean().optional().describe("Avance automático al ritmo. Por defecto activo cuando hay bpm."),
+            staggerSeconds: z.number().min(0).max(5).optional().describe("Separación entre líneas en segundos. Útil si no hay bpm (por defecto 0.4s)."),
+            lineStyle: z
+                .enum(["uniforme", "concierto", "enfasis"])
+                .optional()
+                .describe(
+                    "Tipografía por línea. 'uniforme': todas iguales. " +
+                        "'concierto': primera línea grande y marcada, segunda más chica y liviana. " +
+                        "'enfasis': segunda línea en itálica. Por defecto 'uniforme'.",
+                ),
+            autoAdvance: z.boolean().optional().describe("Avance automático al ritmo. Ponelo en false para que el operador controle el paso a mano."),
             category: z.string().optional().describe("Categoría/carpeta donde guardarlo (id de categoría)."),
         },
     },
@@ -197,6 +206,8 @@ server.registerTool(
                 transitionBeats: args.transitionBeats,
                 autoAdvance: args.autoAdvance,
                 staggerLines: args.staggerLines,
+                staggerSeconds: args.staggerSeconds,
+                lineStyle: args.lineStyle,
             },
         }
 

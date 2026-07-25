@@ -173,6 +173,20 @@ server.registerTool(
                         "'concierto': primera línea grande y marcada, segunda más chica y liviana. " +
                         "'enfasis': segunda línea en itálica. Por defecto 'uniforme'.",
                 ),
+            reveal: z
+                .enum(["none", "word", "character"])
+                .optional()
+                .describe(
+                    "Aparición progresiva de la letra: 'word' revela palabra por palabra, 'character' letra por letra (efecto máquina de escribir). " +
+                        "Por defecto 'none' (la línea entra completa). Tiene prioridad sobre staggerLines.",
+                ),
+            revealMotion: z
+                .enum(["fade", "rise", "blur"])
+                .optional()
+                .describe("Cómo aparece cada palabra/letra: 'fade' (aparece), 'rise' (sube al aparecer), 'blur' (sale del desenfoque). Por defecto 'fade'."),
+            revealBeats: z.number().min(0).max(4).optional().describe("Separación entre palabras/letras en pulsos. Por defecto 0.25 por palabra, 0.05 por letra."),
+            revealSeconds: z.number().min(0).max(2).optional().describe("Separación en segundos. Útil si no hay bpm."),
+            revealDuration: z.number().min(50).max(3000).optional().describe("Cuánto tarda en aparecer cada palabra/letra, en ms. Por defecto 350."),
             autoAdvance: z.boolean().optional().describe("Avance automático al ritmo. Ponelo en false para que el operador controle el paso a mano."),
             category: z.string().optional().describe("Categoría/carpeta donde guardarlo (id de categoría)."),
         },
@@ -208,6 +222,11 @@ server.registerTool(
                 staggerLines: args.staggerLines,
                 staggerSeconds: args.staggerSeconds,
                 lineStyle: args.lineStyle,
+                reveal: args.reveal,
+                revealMotion: args.revealMotion,
+                revealBeats: args.revealBeats,
+                revealSeconds: args.revealSeconds,
+                revealDuration: args.revealDuration,
             },
         }
 

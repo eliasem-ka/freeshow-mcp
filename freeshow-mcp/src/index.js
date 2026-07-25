@@ -188,6 +188,19 @@ server.registerTool(
             revealSeconds: z.number().min(0).max(2).optional().describe("Separación en segundos. Útil si no hay bpm."),
             revealDuration: z.number().min(50).max(3000).optional().describe("Cuánto tarda en aparecer cada palabra/letra, en ms. Por defecto 350."),
             autoAdvance: z.boolean().optional().describe("Avance automático al ritmo. Ponelo en false para que el operador controle el paso a mano."),
+            band: z
+                .enum(["none", "lower_third", "lower", "center"])
+                .optional()
+                .describe(
+                    "Dibuja una banda de fondo detrás de la letra (generada como SVG, sin archivos). " +
+                        "'lower_third' es el clásico de concierto. Por defecto 'none'.",
+                ),
+            bandColor: z.string().optional().describe("Color de la banda en hex. Por defecto un blanco roto (#F2F0EB)."),
+            bandTextColor: z.string().optional().describe("Color de la letra sobre la banda. Por defecto casi negro (#151515)."),
+            bandRotate: z.number().min(-15).max(15).optional().describe("Inclinación en grados de la banda y el texto. Por defecto -1.5."),
+            bandRoughness: z.number().min(0).max(1).optional().describe("Qué tan irregulares son los bordes: 0 limpio, 1 rústico. Por defecto 0.6."),
+            bandSeed: z.number().int().optional().describe("Fija la forma generada: la misma semilla siempre dibuja la misma banda."),
+            fontFamily: z.string().optional().describe("Fuente para la letra (debe estar instalada en el sistema)."),
             category: z.string().optional().describe("Categoría/carpeta donde guardarlo (id de categoría)."),
         },
     },
@@ -209,6 +222,23 @@ server.registerTool(
             showMeta[key] = value
         }
 
+        // the band is its own overlay + template; build it first so the show can reference them
+        let band = null
+        if (args.band && args.band !== "none") {
+            const bandRes = await callAction("create_lyric_template", {
+                name: args.name || meta.title || "Alabanza",
+                placement: args.band,
+                color: args.bandColor,
+                textColor: args.bandTextColor,
+                rotate: args.bandRotate,
+                roughness: args.bandRoughness,
+                seed: args.bandSeed,
+                fontFamily: args.fontFamily,
+            })
+            band = bandRes?.data ?? bandRes
+            if (band?.error) throw new Error(`No se pudo crear la banda: ${band.error}`)
+        }
+
         const payload = {
             name: args.name || meta.title || undefined,
             category: args.category,
@@ -227,7 +257,18 @@ server.registerTool(
                 revealBeats: args.revealBeats,
                 revealSeconds: args.revealSeconds,
                 revealDuration: args.revealDuration,
+                // over a light band the default white text would be invisible
+                textColor: band ? band.suggestedTextColor : undefined,
             },
+            ...(band
+                ? {
+                      overlayId: band.overlayId,
+                      templateId: band.templateId || undefined,
+                      textBox: band.text,
+                      // keep the lyrics on the same tilt as the band
+                      itemStyle: args.bandRotate !== undefined || band ? `transform: rotate(${args.bandRotate ?? -1.5}deg);` : "",
+                  }
+                : {}),
         }
 
         const result = await callAction("create_animated_song", payload)
@@ -237,6 +278,7 @@ server.registerTool(
         return {
             ok: true,
             show: data,
+            banda: band ? { overlayId: band.overlayId, templateId: band.templateId, posicion: band.placement } : undefined,
             diapositivas: slides.length,
             bpm: bpm || null,
             duracionEstimadaSegundos: bpm ? Number(beatsToSeconds(totalBeats, bpm).toFixed(1)) : null,

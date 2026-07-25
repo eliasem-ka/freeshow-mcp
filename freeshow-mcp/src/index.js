@@ -9,6 +9,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
 import { callAction, ping, BASE_URL } from "./freeshow.js"
 import { bookNameToNumber, expandVerses, matchVersion } from "./scriptureRefs.js"
+import { planSong, beatsToSeconds } from "./songBuilder.js"
 
 // --- helpers ---------------------------------------------------------------
 
@@ -125,6 +126,137 @@ server.registerTool(
         const params = { text, name }
         if (category) params.category = category
         return callAction("create_show", params)
+    }),
+)
+
+server.registerTool(
+    "create_song",
+    {
+        title: "Crear alabanza animada (una diapositiva por línea)",
+        description:
+            "Crea un show de alabanza a partir de la letra, con UNA DIAPOSITIVA POR LÍNEA y animaciones sincronizadas al tempo.\n\n" +
+            "Qué hace con el tempo (bpm):\n" +
+            "- Calcula cuánto dura cada línea (estimando sílabas en español) y la ajusta a la rejilla del compás.\n" +
+            "- Escribe ese tiempo como avance automático, así la letra pasa sola al ritmo de la canción.\n" +
+            "- Deriva la duración de la transición del pulso (p. ej. media negra), para que la animación 'respire' con la música.\n\n" +
+            "FORMATO de la letra: una línea por renglón; separa secciones con línea en blanco; " +
+            "encabeza secciones con [Verso], [Coro], [Puente], [Instrumental], etc. " +
+            "Puedes incluir metadatos como 'Title=', 'Artist=' o 'BPM=' en líneas aparte.\n\n" +
+            "Si no indicas 'bpm' el show igual se crea, pero sin avance automático.",
+        inputSchema: {
+            name: z.string().optional().describe("Nombre del show. Si se omite se usa 'Title=' de la letra."),
+            lyrics: z.string().describe("Letra completa, una línea de canto por renglón."),
+            bpm: z.number().min(20).max(300).optional().describe("Tempo en pulsos por minuto. También se puede poner 'BPM=' dentro de la letra."),
+            beatsPerBar: z.number().int().min(1).max(16).optional().describe("Numerador del compás (4 para 4/4, 3 para 3/4). Por defecto 4."),
+            linesPerSlide: z.number().int().min(1).max(10).optional().describe("Líneas por diapositiva. Por defecto 1 (una diapositiva por línea)."),
+            beatsPerLine: z.number().min(0.25).max(64).optional().describe("Duración fija por línea en pulsos. Si se indica, ignora la estimación por sílabas."),
+            syllablesPerBeat: z.number().min(0.25).max(8).optional().describe("Densidad de canto: sílabas por pulso. Por defecto 2. Súbelo si la letra pasa muy lenta."),
+            quantize: z
+                .enum(["beat", "half_bar", "bar", "none"])
+                .optional()
+                .describe("Rejilla a la que se ajusta la duración de cada línea. Por defecto 'beat' (pulso)."),
+            animation: z
+                .enum(["suave", "energetico", "desvanecer", "acercar", "deslizar", "desenfoque", "girar", "ninguna"])
+                .optional()
+                .describe("Estilo de animación de entrada de la letra. Por defecto 'suave'."),
+            transitionBeats: z.number().min(0).max(8).optional().describe("Duración de la transición en pulsos (0.5 = media negra). Sobrescribe el preset."),
+            staggerLines: z
+                .boolean()
+                .optional()
+                .describe("Si una diapositiva tiene varias líneas, hacer que entren una por una al ritmo. Solo aplica con linesPerSlide > 1."),
+            autoAdvance: z.boolean().optional().describe("Avance automático al ritmo. Por defecto activo cuando hay bpm."),
+            category: z.string().optional().describe("Categoría/carpeta donde guardarlo (id de categoría)."),
+        },
+    },
+    tool(async (args) => {
+        const { slides, meta, bpm, totalBeats, warnings } = planSong({
+            text: args.lyrics,
+            bpm: args.bpm,
+            beatsPerBar: args.beatsPerBar ?? 4,
+            linesPerSlide: args.linesPerSlide ?? 1,
+            beatsPerLine: args.beatsPerLine ?? 0,
+            syllablesPerBeat: args.syllablesPerBeat ?? 2,
+            quantize: args.quantize || "beat",
+        })
+
+        // metadata from the lyrics ("Title=", "Artist=") minus the tempo keys, which aren't show metadata
+        const showMeta = {}
+        for (const [key, value] of Object.entries(meta)) {
+            if (key === "bpm" || key === "tempo") continue
+            showMeta[key] = value
+        }
+
+        const payload = {
+            name: args.name || meta.title || undefined,
+            category: args.category,
+            meta: showMeta,
+            bpm,
+            slides,
+            animation: {
+                preset: args.animation || "suave",
+                transitionBeats: args.transitionBeats,
+                autoAdvance: args.autoAdvance,
+                staggerLines: args.staggerLines,
+            },
+        }
+
+        const result = await callAction("create_animated_song", payload)
+        const data = result?.data ?? result
+        if (data?.error) throw new Error(`FreeShow no pudo crear la alabanza: ${data.error}`)
+
+        return {
+            ok: true,
+            show: data,
+            diapositivas: slides.length,
+            bpm: bpm || null,
+            duracionEstimadaSegundos: bpm ? Number(beatsToSeconds(totalBeats, bpm).toFixed(1)) : null,
+            advertencias: warnings.length ? warnings : undefined,
+        }
+    }),
+)
+
+server.registerTool(
+    "preview_song_timing",
+    {
+        title: "Previsualizar el tempo de una alabanza",
+        description:
+            "Calcula cómo quedaría la alabanza (líneas, duración de cada diapositiva y total) SIN crear nada en FreeShow. " +
+            "Útil para ajustar 'bpm' o 'syllablesPerBeat' antes de crear el show definitivo.",
+        inputSchema: {
+            lyrics: z.string().describe("Letra completa, una línea de canto por renglón."),
+            bpm: z.number().min(20).max(300).optional().describe("Tempo en pulsos por minuto."),
+            beatsPerBar: z.number().int().min(1).max(16).optional().describe("Numerador del compás. Por defecto 4."),
+            linesPerSlide: z.number().int().min(1).max(10).optional().describe("Líneas por diapositiva. Por defecto 1."),
+            beatsPerLine: z.number().min(0.25).max(64).optional().describe("Duración fija por línea en pulsos."),
+            syllablesPerBeat: z.number().min(0.25).max(8).optional().describe("Sílabas por pulso. Por defecto 2."),
+            quantize: z.enum(["beat", "half_bar", "bar", "none"]).optional().describe("Rejilla de ajuste. Por defecto 'beat'."),
+        },
+    },
+    tool(async (args) => {
+        const { slides, meta, bpm, totalBeats, warnings } = planSong({
+            text: args.lyrics,
+            bpm: args.bpm,
+            beatsPerBar: args.beatsPerBar ?? 4,
+            linesPerSlide: args.linesPerSlide ?? 1,
+            beatsPerLine: args.beatsPerLine ?? 0,
+            syllablesPerBeat: args.syllablesPerBeat ?? 2,
+            quantize: args.quantize || "beat",
+        })
+
+        return {
+            bpm: bpm || null,
+            diapositivas: slides.length,
+            duracionEstimadaSegundos: bpm ? Number(beatsToSeconds(totalBeats, bpm).toFixed(1)) : null,
+            metadatos: Object.keys(meta).length ? meta : undefined,
+            detalle: slides.map((s, i) => ({
+                n: i + 1,
+                grupo: s.group || undefined,
+                texto: s.lines.join(" / ") || "(instrumental)",
+                pulsos: s.beats ?? null,
+                segundos: bpm && s.beats ? Number(beatsToSeconds(s.beats, bpm).toFixed(2)) : null,
+            })),
+            advertencias: warnings.length ? warnings : undefined,
+        }
     }),
 )
 

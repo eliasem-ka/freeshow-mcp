@@ -2,7 +2,9 @@
 
 Servidor **MCP** (Model Context Protocol) para controlar **FreeShow** desde un asistente de IA (Claude Desktop, Claude Code, etc.).
 
-Pensado para el flujo normal de una iglesia: crear y editar letras, corregir ortografía, mostrar versículos, manejar contadores/timers, anuncios (overlays) y disparar la presentación en vivo. Funciona como un cliente liviano sobre la **API REST** que FreeShow ya trae integrada — no modifica el código de FreeShow.
+Pensado para el flujo normal de una iglesia: crear y editar letras, armar alabanzas sincronizadas al tempo, corregir ortografía, mostrar versículos, manejar contadores/timers, anuncios (overlays) y disparar la presentación en vivo. Funciona como un cliente liviano sobre la **API REST** que FreeShow ya trae integrada.
+
+> **Requiere el fork de FreeShow de este repo.** La mayoría de las herramientas funcionan contra FreeShow estándar, pero `create_scripture_playlist`, `create_song` y `preview_song_timing` usan acciones de API añadidas en el submódulo `FreeShow/` (módulos aparte, para que los merges con el repo original sigan siendo limpios).
 
 ## Requisitos
 
@@ -76,6 +78,8 @@ Ejemplo para apuntar a otra máquina:
 | `get_show` | Contenido completo de un show (slides, grupos, layouts) |
 | `read_lyrics` | Letra de un show como texto plano |
 | `create_lyrics` | Crea un show desde texto (canciones, versículos, anuncios) |
+| `create_song` | Crea una alabanza con **una diapositiva por línea** y animación sincronizada al tempo |
+| `preview_song_timing` | Calcula los tiempos de la alabanza **sin crear nada**, para ajustar el BPM |
 | `edit_lyrics` | Reescribe la letra de un show (corregir ortografía, editar) |
 | `select_show` | Abre un show por nombre (no lo manda a salida) |
 | `present_show` | Presenta un show por id (lo manda a la salida) |
@@ -112,8 +116,46 @@ Fui ciego, mas hoy veo yo
 perdido y Él me halló
 ```
 
+## Alabanzas sincronizadas al tempo (`create_song`)
+
+Toma la letra y el **BPM** de la canción, y arma el show con una diapositiva por línea:
+
+- **Duración de cada línea**: estima las sílabas (en español, contando diptongos e hiatos) y las convierte a pulsos, ajustándolas a la rejilla del compás. Así cada línea cae en un tiempo musical, no en un número arbitrario.
+- **Avance automático**: escribe esa duración como *next slide timer*, con precisión decimal. La letra pasa sola al ritmo.
+- **Animación**: la duración de la transición se deriva del pulso (p. ej. media negra), para que la entrada del texto "respire" con la música.
+
+```
+Title=Sublime Gracia
+BPM=72
+
+[Verso]
+Sublime gracia del Señor
+que a un infeliz salvó
+
+[Coro]
+Fui ciego, mas hoy veo yo
+perdido y Él me halló
+```
+
+Parámetros útiles:
+
+| Parámetro | Para qué |
+|---|---|
+| `bpm` | Tempo. También se puede poner `BPM=` dentro de la letra |
+| `beatsPerBar` | Numerador del compás (4 para 4/4, 3 para 3/4) |
+| `linesPerSlide` | Líneas por diapositiva (**1** por defecto) |
+| `syllablesPerBeat` | Densidad de canto. Súbelo si la letra pasa muy lenta |
+| `beatsPerLine` | Duración fija por línea; ignora la estimación por sílabas |
+| `quantize` | Rejilla de ajuste: `beat`, `half_bar`, `bar` o `none` |
+| `animation` | `suave`, `energetico`, `desvanecer`, `acercar`, `deslizar`, `desenfoque`, `girar`, `ninguna` |
+| `staggerLines` | Con `linesPerSlide > 1`, hace entrar las líneas una por una al ritmo |
+
+Conviene correr `preview_song_timing` primero: muestra línea por línea cuántos pulsos y segundos le tocan, sin tocar FreeShow.
+
 ## Ejemplos de uso (lenguaje natural al asistente)
 
+- "Agrega esta alabanza a 72 BPM, una diapositiva por línea, con animación suave: …"
+- "Antes de crearla, muéstrame cómo quedarían los tiempos a 90 BPM."
 - "Crea una canción llamada *Cuán Grande Es Él* con estos versos…"
 - "Lee la letra de *¿Quién Como Tú, Jehová* y corrígele la ortografía."
 - "Agrega un slide de versículo con Juan 3:16."
@@ -126,3 +168,5 @@ perdido y Él me halló
 - La API de FreeShow no tiene autenticación; úsala en una red local de confianza.
 - `create_lyrics` guarda el show en `Documentos/FreeShow/Shows/` y aparece en el drawer al instante.
 - `edit_lyrics` reemplaza **todo** el contenido de texto del show: enviá el texto completo corregido.
+- El avance automático de `create_song` corre en la **salida en vivo**; en el editor verás los tiempos marcados en cada slide pero no avanzará solo.
+- La estimación de sílabas es un modelo de ritmo, no un análisis de audio: si una línea queda corta o larga, ajustá `syllablesPerBeat` o fijá `beatsPerLine`.

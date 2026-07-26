@@ -17,3 +17,6 @@ freeshow-mcp/pro-dryrun-reporte*.md
 # OS
 .DS_Store
 Thumbs.db
+
+# reporte del plan de migracion: tambien lleva la letra completa
+freeshow-mcp/pro-plan-reporte*.md

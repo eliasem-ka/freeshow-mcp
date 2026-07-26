@@ -10,6 +10,10 @@ bible_import.exe
 # salida temporal del convertidor
 bible-converter/_test_out/
 
+# reportes de la prueba en seco de ProPresenter: contienen la letra completa
+# de la librería, que no corresponde versionar
+freeshow-mcp/pro-dryrun-reporte*.md
+
 # OS
 .DS_Store
 Thumbs.db

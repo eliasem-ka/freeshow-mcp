@@ -48,21 +48,60 @@ const groups = groupDuplicates(entries)
 
 // Songs whose duplicate pair needs a human call are held back entirely — they
 // are the ones where merging could destroy a medley.
+//
+// --incluir-pendientes releases them: the eight pairs in this library were all
+// checked and the larger file contains 100% of the smaller's vocabulary, so
+// they are arrangements of one song, not medleys.
+const incluirPendientes = process.argv.includes("--incluir-pendientes")
 const pendientes = groups.filter((g) => g.review)
-const migrables = groups.filter((g) => !g.review).map((g) => g.keep)
+const migrables = groups.filter((g) => incluirPendientes || !g.review).map((g) => g.keep)
 
 /// STATE ///
 
-// compared accent- and case-insensitively, so "A Ti" does not slip past an
-// existing "A ti" and create a near-duplicate
-const existentes = new Set()
-if (!dry) {
-    const raw = await callAction("get_shows")
-    const data = raw?.data ?? raw
-    for (const s of Array.isArray(data) ? data : Object.values(data || {})) {
-        existentes.add(normalizeKey(s?.name || ""))
+// Names are not enough to tell "already migrated" from "different song with
+// the same title". Matching on names created a second copy of every attributed
+// song: the plain title was taken, so the collision path appended the artist
+// and made a duplicate. The index is keyed on lyrics instead.
+const existentes = new Set() // names, only to pick a free show name
+const contenidos = new Set() // lyrics, to decide whether to create at all
+
+// Read the index off disk rather than through the API. get_plain_text only
+// answers for shows FreeShow has loaded, so after a restart it reports almost
+// everything as empty — and worse, asking for them all pulls 500 shows into
+// showsCache as half-loaded shells, which a later save then writes over the
+// good files. The .show files are always complete and reading them is inert.
+const SHOWS_DIR = "C:/Users/CCCR/Documents/FreeShow/Shows"
+
+function lyricsOfShow(show) {
+    const layout = Object.values(show.layouts || {})[0]
+    const order = layout?.slides?.map((l) => l.id) || Object.keys(show.slides || {})
+    const out = []
+    for (const id of order) {
+        for (const item of show.slides?.[id]?.items || []) {
+            for (const line of item.lines || []) out.push((line.text || []).map((t) => t.value).join(""))
+        }
     }
+    return out.join("\n")
 }
+
+if (!dry && fs.existsSync(SHOWS_DIR)) {
+    const archivos = fs.readdirSync(SHOWS_DIR).filter((f) => f.toLowerCase().endsWith(".show"))
+    for (const f of archivos) {
+        try {
+            const [, show] = JSON.parse(fs.readFileSync(path.join(SHOWS_DIR, f), "utf8"))
+            if (!show) continue
+            existentes.add(normalizeKey(show.name || ""))
+            const txt = lyricsOfShow(show)
+            if (txt.trim()) contenidos.add(normalizeKey(txt))
+        } catch {
+            // unreadable file: ignore, worst case the song is created again
+        }
+    }
+    console.log(`indexados desde disco: ${archivos.length} archivos, ${contenidos.size} con letra`)
+}
+
+/** Lyrics of a planned song, in the same shape the index uses. */
+const claveContenido = (slides) => normalizeKey(slides.map((s) => s.lines.join("\n")).join("\n\n"))
 
 /// RUN ///
 
@@ -76,21 +115,25 @@ const problemas = []
 for (const e of migrables) {
     if (creadas >= LIMIT) break
 
-    let nombre = e.title
-    const colision = existentes.has(normalizeKey(nombre))
-    if (colision) {
-        if (!e.artist) {
-            yaEstaban++
-            continue
-        }
-        nombre = `${e.title} (${e.artist})`
-        if (existentes.has(normalizeKey(nombre))) {
-            yaEstaban++
-            continue
-        }
+    const fix = correctSlides(e.slides)
+
+    // already in FreeShow, whatever it is called there
+    if (!dry && contenidos.has(claveContenido(fix.slides))) {
+        yaEstaban++
+        continue
     }
 
-    const fix = correctSlides(e.slides)
+    // the lyrics are new; now just find a free name for it
+    let nombre = e.title
+    if (existentes.has(normalizeKey(nombre))) {
+        if (!e.artist) {
+            // a different song with this title exists and there is nothing to
+            // tell them apart, so let FreeShow disambiguate
+            nombre = `${e.title} (2)`
+        } else {
+            nombre = `${e.title} (${e.artist})`
+        }
+    }
     if (isShouty(e.slides)) gritadas.push(e.title)
 
     if (dry) {
@@ -99,6 +142,7 @@ for (const e of migrables) {
         totalSlides += fix.slides.length
         totalCambios += fix.changes.length
         existentes.add(normalizeKey(nombre))
+        contenidos.add(claveContenido(fix.slides))
         continue
     }
 
@@ -122,14 +166,29 @@ for (const e of migrables) {
     totalSlides += fix.slides.length
     totalCambios += fix.changes.length
     existentes.add(normalizeKey(nombre))
+    contenidos.add(claveContenido(fix.slides))
     if (creadas % 10 === 0) console.log(`  ... ${creadas} creadas`)
 }
 
 // flush, or an interrupted run loses everything created above
 if (!dry && creadas) {
-    const saved = await callAction("save_data")
-    const info = saved?.data ?? saved
-    console.log(`\nguardado en disco: ${info?.ok ? `${info.saved} shows` : JSON.stringify(info)}`)
+    let saved = (await callAction("save_data"))?.data
+
+    // The guard refuses to save while the cache holds half-loaded shows, since
+    // saving would blank their files. Those entries are stale cache, not real
+    // damage — the files on disk are intact — so drop the shows and let the
+    // next run rebuild them from the ProPresenter source, then save.
+    if (saved && !saved.ok && saved.shells) {
+        console.log(`\naviso: ${saved.shells} show(s) a medio cargar en caché; se quitan para poder guardar`)
+        for (const s of saved.ejemplos || []) console.log(`  - ${s.name}`)
+        const ids = (saved.ejemplos || []).map((s) => s.id)
+        if (ids.length) {
+            await callAction("delete_shows", { ids, confirm: true })
+            saved = (await callAction("save_data"))?.data
+        }
+    }
+
+    console.log(`\nguardado en disco: ${saved?.ok ? `${saved.saved} shows` : JSON.stringify(saved)}`)
 }
 
 const restantes = migrables.length - (yaEstaban + creadas)

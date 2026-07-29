@@ -255,6 +255,21 @@ function lyricsOf(entry) {
 // often a medley versus the plain song — so they get flagged, not merged.
 const SIZE_GAP = 1.8
 
+/**
+ * Rank artist spellings, best first. An ALL-CAPS name is a shouted file name;
+ * one with accents and mixed case was typed deliberately.
+ */
+function byNameQuality(a, b) {
+    const score = (s) => {
+        let n = 0
+        if (s !== s.toUpperCase()) n += 4 // not shouted
+        if (/[áéíóúñÁÉÍÓÚÑ]/.test(s)) n += 2 // carries accents
+        if (/['’]/.test(s)) n += 1 // apostrophes preserved
+        return n
+    }
+    return score(b) - score(a) || a.length - b.length
+}
+
 /** Within one title+artist cluster, split by lyrics and pick a winner per song. */
 function resolveGroup(group) {
     if (group.length === 1) return [{ keep: group[0], drop: [], reason: "único", review: false }]
@@ -284,6 +299,17 @@ function resolveGroup(group) {
             if (donor) {
                 keep[key] = donor[key]
                 heredado.push(`${key} de ${donor.file}`)
+            }
+        }
+
+        // The same artist is often typed well in one copy and shouted in
+        // another ("CRISTIN D CLARIO" vs "Christine D'Clario"). Since the
+        // copies are about to be merged, take the better-formed spelling.
+        if (keep.artist) {
+            const mejor = [keep, ...rest].map((e) => e.artist).filter(Boolean).sort(byNameQuality)[0]
+            if (mejor && mejor !== keep.artist) {
+                keep.artist = mejor
+                heredado.push(`artista mejor escrito: "${mejor}"`)
             }
         }
 

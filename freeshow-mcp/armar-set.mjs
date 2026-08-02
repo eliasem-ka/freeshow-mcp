@@ -8,6 +8,11 @@
 // project in the order of the setlist.
 //
 // Usage: node armar-set.mjs [--apply]
+//
+// NOTE: no forced save here. Persisting through FreeShow's save wrote a
+// degraded showsCache over good files and blanked hundreds of shows twice.
+// Close FreeShow to let it save, or write .show files directly with
+// src/escribirShow.js.
 
 import fs from "fs"
 import path from "path"
@@ -156,11 +161,4 @@ for (const p of plan) {
     if (projectId) await callAction("add_to_project", { projectId, id: res.id })
 }
 
-let saved = (await callAction("save_data"))?.data
-if (saved && !saved.ok && saved.shells) {
-    console.log(`aviso: ${saved.shells} show(s) a medio cargar; se quitan para poder guardar`)
-    await callAction("delete_shows", { ids: (saved.ejemplos || []).map((s) => s.id), confirm: true })
-    saved = (await callAction("save_data"))?.data
-}
-console.log(`\nguardado: ${JSON.stringify(saved)}`)
 console.log(`set armado: ${creados.length} de ${plan.length}`)

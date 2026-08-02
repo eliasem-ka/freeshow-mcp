@@ -4,6 +4,11 @@
 //
 // Re-runnable: anything already in FreeShow is skipped, so it can be called
 // repeatedly until the library is done.
+//
+// NOTE: no forced save here. Persisting through FreeShow's save wrote a
+// degraded showsCache over good files and blanked hundreds of shows twice.
+// Close FreeShow to let it save, or write .show files directly with
+// src/escribirShow.js.
 
 import fs from "fs"
 import path from "path"
@@ -172,23 +177,12 @@ for (const e of migrables) {
 
 // flush, or an interrupted run loses everything created above
 if (!dry && creadas) {
-    let saved = (await callAction("save_data"))?.data
 
     // The guard refuses to save while the cache holds half-loaded shows, since
     // saving would blank their files. Those entries are stale cache, not real
     // damage — the files on disk are intact — so drop the shows and let the
     // next run rebuild them from the ProPresenter source, then save.
-    if (saved && !saved.ok && saved.shells) {
-        console.log(`\naviso: ${saved.shells} show(s) a medio cargar en caché; se quitan para poder guardar`)
-        for (const s of saved.ejemplos || []) console.log(`  - ${s.name}`)
-        const ids = (saved.ejemplos || []).map((s) => s.id)
-        if (ids.length) {
-            await callAction("delete_shows", { ids, confirm: true })
-            saved = (await callAction("save_data"))?.data
-        }
-    }
 
-    console.log(`\nguardado en disco: ${saved?.ok ? `${saved.saved} shows` : JSON.stringify(saved)}`)
 }
 
 const restantes = migrables.length - (yaEstaban + creadas)

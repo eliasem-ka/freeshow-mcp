@@ -4,6 +4,11 @@
 // the review record, so anything not reviewed is not created.
 //
 // Usage: node pro-migrar.mjs [--dry]
+//
+// NOTE: no forced save here. Persisting through FreeShow's save wrote a
+// degraded showsCache over good files and blanked hundreds of shows twice.
+// Close FreeShow to let it save, or write .show files directly with
+// src/escribirShow.js.
 
 import fs from "fs"
 import path from "path"
@@ -106,9 +111,7 @@ for (const [file, fix] of Object.entries(CORRECCIONES)) {
 // New shows only live in memory until FreeShow saves, and autosave is every
 // 15 minutes by default — without this an interrupted run loses everything.
 if (!dry && creadas) {
-    const saved = await callAction("save_data")
     const info = saved?.data ?? saved
-    console.log(`\nguardado en disco: ${info?.ok ? `${info.saved} shows` : JSON.stringify(info)}`)
 }
 
 console.log(`\n${dry ? "[prueba en seco] " : ""}creadas: ${creadas} · saltadas por existir: ${saltadas} · problemas: ${problemas.length}`)

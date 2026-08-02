@@ -4,6 +4,11 @@
 // would destroy real variants.
 //
 // Usage: node pro-dedup-disco.mjs [--apply]
+//
+// NOTE: no forced save here. Persisting through FreeShow's save wrote a
+// degraded showsCache over good files and blanked hundreds of shows twice.
+// Close FreeShow to let it save, or write .show files directly with
+// src/escribirShow.js.
 
 import fs from "fs"
 import path from "path"
@@ -74,6 +79,4 @@ if (!apply) {
 } else if (borrar.length) {
     const res = await callAction("delete_shows", { ids: borrar.map((s) => s.id), confirm: true })
     console.log(`\nborrados: ${(res?.data ?? res)?.deleted ?? "?"}`)
-    const saved = (await callAction("save_data"))?.data
-    console.log(`guardado: ${JSON.stringify(saved)}`)
 }

@@ -6,6 +6,11 @@
 // generated ids, which is what tells them apart.
 //
 // Usage: node limpiar-proyecto.mjs [--apply]
+//
+// NOTE: no forced save here. Persisting through FreeShow's save wrote a
+// degraded showsCache over good files and blanked hundreds of shows twice.
+// Close FreeShow to let it save, or write .show files directly with
+// src/escribirShow.js.
 
 import { callAction } from "./src/freeshow.js"
 
@@ -42,9 +47,3 @@ if (!apply) {
 const res = (await callAction("trim_project", { projectId: PROYECTO, keepIds: originales.map((s) => s.id), confirm: true }))?.data
 console.log(`\nresultado: ${JSON.stringify(res)}`)
 
-let saved = (await callAction("save_data"))?.data
-if (saved && !saved.ok && saved.shells) {
-    await callAction("delete_shows", { ids: (saved.ejemplos || []).map((s) => s.id), confirm: true })
-    saved = (await callAction("save_data"))?.data
-}
-console.log(`guardado: ${JSON.stringify(saved)}`)

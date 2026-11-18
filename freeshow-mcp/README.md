@@ -77,7 +77,7 @@ Ejemplo para apuntar a otra máquina:
 | `list_shows` | Lista todos los shows con su id y nombre |
 | `get_show` | Contenido completo de un show (slides, grupos, layouts) |
 | `read_lyrics` | Letra de un show como texto plano |
-| `create_lyrics` | Crea un show desde texto (canciones, versículos, anuncios) |
+| `create_lyrics` | Crea un show desde texto y devuelve su id. Queda solo en la biblioteca, salvo que se pida `addToProject`, `projectId` u `open` |
 | `create_song` | Crea una alabanza con **una diapositiva por línea** y animación sincronizada al tempo |
 | `preview_song_timing` | Calcula los tiempos de la alabanza **sin crear nada**, para ajustar el BPM |
 | `edit_lyrics` | Reescribe la letra de un show (corregir ortografía, editar) |

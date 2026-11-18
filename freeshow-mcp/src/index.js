@@ -121,12 +121,22 @@ server.registerTool(
             name: z.string().describe("Nombre del show (p. ej. el título de la canción)."),
             text: z.string().describe("Contenido en texto plano con el formato descrito (secciones separadas por línea en blanco, grupos entre corchetes)."),
             category: z.string().optional().describe("Categoría/carpeta opcional donde guardarlo (id de categoría)."),
+            addToProject: z.boolean().optional().describe("Agregarlo también al proyecto abierto. Por defecto solo queda en la biblioteca."),
+            projectId: z.string().optional().describe("Agregarlo a este proyecto en concreto."),
+            open: z.boolean().optional().describe("Abrirlo en la app. Por defecto no, para no cambiar lo que el operador tiene en pantalla."),
         },
     },
-    tool(async ({ name, text, category }) => {
+    tool(async ({ name, text, category, addToProject, projectId, open }) => {
         const params = { text, name }
         if (category) params.category = category
-        return callAction("create_show", params)
+        if (addToProject) params.addToProject = true
+        if (projectId) params.projectId = projectId
+        if (open) params.open = true
+        // el fork devuelve { id, name, project }: el id sirve para aplicarle un tema o presentarlo después
+        const res = await callAction("create_show", params)
+        const data = res && typeof res === "object" && "data" in res ? res.data : res
+        if (data && typeof data.error === "string") throw new Error(data.error)
+        return data
     }),
 )
 

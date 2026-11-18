@@ -94,7 +94,49 @@ Ejemplo para apuntar a otra máquina:
 | `set_variable` | Cambia una variable dinámica (texto/número) |
 | `list_timers` / `list_variables` / `get_output` | Estado actual |
 | `check_connection` | Diagnóstico de conexión |
-| `raw_action` | Escotilla de escape: ejecuta cualquiera de las ~130 acciones de la API |
+| `api_schema` | Lista las acciones de la API con sus parámetros, tal como están en la versión abierta (filtra por sección o texto) |
+| `raw_action` | Escotilla de escape: ejecuta cualquier acción de la API (búscala con `api_schema`) |
+
+### Temas, fondos y salidas
+
+Requieren el fork de FreeShow (acciones de `custom/themeApi.ts`).
+
+| Herramienta | Qué hace |
+|---|---|
+| `list_themes` / `get_theme` | Temas con su carpeta y una descripción sencilla (`spec`) de cómo se ven |
+| `list_theme_folders` | Carpetas de temas y qué tema usa cada tipo de diapositiva |
+| `preview_theme` | **Imagen** de un tema con texto de ejemplo: de uno guardado o de un `spec` antes de guardarlo |
+| `create_theme` / `update_theme` | Crea o edita un tema con un `spec`; al editar solo cambian las claves que se dan |
+| `duplicate_theme` / `delete_theme` | Copia o borra un tema |
+| `apply_theme` | Aplica un tema a la presentación, a unas diapositivas, a un grupo (todos los coros) o a un proyecto entero |
+| `set_theme_role` / `apply_theme_package` | Asigna un tema por tipo de diapositiva y reparte la carpeta completa |
+| `theme_palette` / `replace_theme_value` | Colores y fuentes de una carpeta; cambia uno en todos sus temas a la vez |
+| `list_fonts` | Fuentes instaladas en la computadora de FreeShow |
+| `add_factory_themes` | Agrega la carpeta de temas de fábrica |
+| `export_theme_folder` / `import_theme_file` | Lleva una carpeta de temas (con sus fondos) a otra computadora |
+| `list_output_styles` / `set_output_theme` | Un tema distinto por salida (transmisión, escenario) |
+| `list_media_folders` / `list_media` | Videos e imágenes de la biblioteca de medios |
+| `set_background` | Pone o quita el fondo de una presentación o de algunas diapositivas |
+
+## Diseñar un tema con el asistente
+
+Un tema se describe con un `spec`, sin tocar el formato interno de FreeShow:
+
+```json
+{
+  "position": "lower_third",
+  "font": "Georgia",
+  "size": 78,
+  "color": "#FFF4D6",
+  "shadow": false,
+  "box": { "color": "#0E1B2B", "opacity": 0.8, "radius": 28, "padding": 34 },
+  "decorations": [{ "type": "rect", "position": { "left": 60, "top": 700, "width": 14, "height": 300 }, "color": "#F2B84B" }]
+}
+```
+
+Claves: `position` (`full`, `center`, `upper_third`, `lower_third`, `top`, `bottom`, `left`, `right` o una caja en píxeles sobre 1920x1080), `margin`, `font`, `size`, `weight`, `italic`, `uppercase`, `color`, `align`, `verticalAlign`, `lineHeight`, `letterSpacing`, `shadow`, `outline`, `box`, `fit`, `background` (`color` o `path`), `maxLines` y `decorations` (`rect` o `gradient`).
+
+El ciclo que mejor funciona: `preview_theme` con el `spec` → mirar la imagen → corregir → `create_theme` → `apply_theme`. La primera vista previa tarda unos 5 segundos; las siguientes, cerca de 1.
 
 ## Formato de texto para `create_lyrics` / `edit_lyrics`
 
@@ -162,6 +204,10 @@ Conviene correr `preview_song_timing` primero: muestra línea por línea cuánto
 - "Pon en pantalla el Salmo 23 y avanza al siguiente versículo."
 - "Inicia el contador de 5 minutos antes del servicio."
 - "Limpia la pantalla."
+- "Hazme un tema navideño elegante en tercio inferior, enséñamelo y aplícalo a todas las alabanzas del proyecto."
+- "Cambia el dorado de la carpeta *Serie Navidad* por rojo."
+- "Busca un video de fondo con montañas y ponlo en esta alabanza."
+- "Que la transmisión use el tema de tercio inferior y la pantalla principal siga igual."
 
 ## Notas
 

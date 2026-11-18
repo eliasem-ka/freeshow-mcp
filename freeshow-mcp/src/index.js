@@ -10,6 +10,7 @@ import { z } from "zod"
 import { callAction, ping, BASE_URL } from "./freeshow.js"
 import { bookNameToNumber, expandVerses, matchVersion } from "./scriptureRefs.js"
 import { planSong, beatsToSeconds } from "./songBuilder.js"
+import { registerThemeTools } from "./themeTools.js"
 
 // --- helpers ---------------------------------------------------------------
 
@@ -641,7 +642,7 @@ server.registerTool(
         title: "Acción avanzada (API cruda)",
         description:
             "Ejecuta cualquier acción de la API de FreeShow no cubierta por las herramientas anteriores " +
-            "(hay ~130: change_layout, random_slide, play_audio, obs_*, spotify_*, get_slide, get_groups, set_template, etc.). " +
+            "(usa api_schema para verlas todas: change_layout, random_slide, play_audio, obs_*, spotify_*, get_slide, get_groups, set_template, etc.). " +
             "Pasa el 'action' (id exacto) y un objeto 'params' opcional con los campos que requiera esa acción.",
         inputSchema: {
             action: z.string().describe("Id exacto de la acción de la API de FreeShow."),
@@ -650,6 +651,10 @@ server.registerTool(
     },
     tool(async ({ action, params }) => callAction(action, params || {})),
 )
+
+// === Temas, fondos y descubrimiento de la API (themeTools.js) ===
+
+registerThemeTools(server, tool)
 
 // --- entrypoint ------------------------------------------------------------
 
